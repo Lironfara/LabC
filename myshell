@@ -1,0 +1,198 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <unistd.h>  
+#include <stdbool.h>
+#include "LineParser.h"
+#include <sys/wait.h>
+#include <signal.h>
+#include <sys/types.h>
+
+
+
+#define MAX_LENGTH 2048
+#define MAX_PATH_SIZE 4096
+char input[MAX_LENGTH]; //string is array of chars
+bool debug = false;
+
+//puprose : child1 excecute the command and the parent wait for the child to finish
+// child12 excecute the next command based on the result of the first child
+
+
+//old methods of Lab 2
+int getChildPID(cmdLine *pCmdLine){
+    return atoi(pCmdLine->arguments[1]);
+}
+
+void handleStop(cmdLine *pCmdLine){
+    if (pCmdLine->argCount < 2){
+        perror("Fail to stop process");
+        return;
+    }
+    int childPID = getChildPID(pCmdLine);
+    if (kill(childPID, SIGSTOP) == -1){
+        perror("Fail to stop process");
+    }
+    else {
+        fprintf(stdout, "Process %d was stopped\n", childPID);
+    }
+}
+
+void handleTerm(cmdLine *pCmdLine){
+    if (pCmdLine->argCount < 2){
+        perror("Fail to terminate process");
+        return;
+    }
+    int childPID = getChildPID(pCmdLine);
+    if (kill(childPID, SIGTERM) == -1){
+        perror("Fail to terminate process");
+    }
+    else {
+        fprintf(stdout, "Process %d was terminated\n", childPID);
+    }
+
+}
+
+void handleWake(cmdLine *pCmdLine){
+    if (pCmdLine->argCount < 2){
+        perror("Fail to wake process");
+        return;
+    }
+    int childPID = getChildPID(pCmdLine);
+    if (kill(childPID, SIGCONT) == -1){
+        perror("Fail to wake process");
+    }
+    else {
+        fprintf(stdout, "Process %d was woken\n", childPID);
+    }
+} 
+
+void handleCD(cmdLine *pCmdLine){
+    if (pCmdLine->argCount < 2){
+        perror("Fail to change directory");
+        return;
+    }
+    if (chdir(pCmdLine->arguments[1]) == -1){
+        perror("Fail to change directory");
+    }
+    else {
+        fprintf(stdout, "Directory was changed\n");
+    }
+     freeCmdLines(pCmdLine);
+
+}
+
+//using pipe we made a connection between STDOUT and STDIN
+
+void execute_pipe(cmdLine *pCmdLine){
+
+    //rasing error beacuse we are writing to the output and 
+    //reading from the pipe write end
+     if (pCmdLine->outputRedirect != NULL || pCmdLine->next->inputRedirect != NULL) {
+        fprintf(stderr, "Error: Invalid redirection with pipe\n");
+        return;
+    }
+
+
+    //creating pipe
+    int pipefd[2];
+    if (pipe(pipefd) ==-1){  
+        perror("Pipe failed");   
+        exit(1);
+    }
+
+    int child1 = fork();
+    if (child1 == -1){
+        perror("Fork failed");
+        exit(1);
+    }
+
+    if (child1 == 0){ //child1
+        close(STDOUT_FILENO); //close the standard output
+        dup2(pipefd[1], STDOUT_FILENO); //insted of writing to the terminal, write to the pipe so the second child will read and 
+        //excute the command on the reasult
+        close(pipefd[1]);
+        if (execvp(pCmdLine->arguments[0], pCmdLine->arguments) == -1){ //the first child execute the command and write it to the second child
+            perror("Fail to execute command");
+            _exit(1);
+        }
+
+        if (pCmdLine->blocking == 1){
+            waitpid(child1, NULL, 0);
+        }
+    }
+    //----------------------------------parent process - creating new child---------------------------------//
+
+    close(pipefd[1]); //close the write side of the pipe in the parent process
+    int child2 = fork();
+    if (child2 == -1){
+        perror("Fork failed");
+        exit(1);
+    }
+    if (child2 == 0){ //exceute on the result
+        close(STDIN_FILENO); //close the standard input
+        dup2(pipefd[0], STDIN_FILENO); //insted of reading from the terminal, read from the pipe. 
+        //we are reading the result of excution of the first child
+        if (execvp(pCmdLine->next->arguments[0], pCmdLine->next->arguments) == -1){ //the second child execute the command
+        //and getting parameters from pipe[0] insted of STDIN
+            perror("Fail to execute command");
+            _exit(1);
+        }
+    }
+    close(pipefd[0]); //close the read side of the pipe in the parent process
+
+    if (pCmdLine->blocking == 1){
+        waitpid(child1, NULL, 0);
+        waitpid(child2, NULL, 0);
+    }
+
+    
+} 
+    
+
+
+
+int main(int argc, char **argv){
+
+    cmdLine *parsedLine;
+
+    if (argc>1 && strcmp(argv[1], "-d") == 0){
+        debug = true;
+    }
+    
+
+    while (1){ //for infinte loop
+
+        if (debug){
+            fprintf(stderr, "PID: %d\n", getpid());
+            fprintf(stderr, "Executing command: %s", input);
+        }
+
+        char current_dir[MAX_PATH_SIZE]; 
+        if (getcwd(current_dir, MAX_PATH_SIZE) == NULL){
+            perror("Fail in getcwd");
+            _exit(1);
+        }
+
+    
+
+        fprintf(stdout, "%s>", current_dir); //print the current directory using prompt symbol
+
+        fgets(input, MAX_LENGTH, stdin); //reading from stdin to line - max length is 2048
+
+      
+
+
+        if (strcmp (input,  "quit\n") == 0 ){
+            break;
+        }
+        
+        parsedLine = parseCmdLines(input); //cmd structure    
+        
+
+        execute(parsedLine); 
+    }
+    freeCmdLines(parsedLine); 
+
+}
