@@ -61,7 +61,6 @@ int main(){
         close(pipefd[1]); //close the file descriptor that was duplicated
         fprintf(stderr, "(child1>going to execute cmd: ls -l)\n");
         execlp("ls", "ls", "-l", NULL); // Execute "ls -l" entering it to the duplicpipe we closed - child2 reading from the duplicate read
-        execvp(cmdLine->arguments[0], cmdLine->arguments); // Execute the command
     }
 
 
@@ -83,8 +82,7 @@ int main(){
             dup2(pipefd[0], STDIN_FILENO); //duplicate the read end of the pipe
             close(pipefd[0]); //close the file descriptor that was duplicated
             fprintf(stderr, "(child2>going to execute cmd: tail -n 2)\n");
-            execvp(cmdLine->arguments[0], cmdLine->arguments); // Execute the command   
-            perror("execlp failed");        // Handle execlp failure
+            execlp("tail", "tail", "-n", "2", NULL); // Execute "tail -n 2"            perror("execlp failed");        // Handle execlp failure
             exit(1);
         }
         else{ //parent of child2
