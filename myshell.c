@@ -98,6 +98,7 @@ void updateProcessList(process **process_list) {
                 curr->status = TERMINATED;
             }
         }
+        curr = curr->next;
     }
 }
 
@@ -129,46 +130,32 @@ void printProcessList(process** process_list) {
     }
 }
 
-void stop(cmdLine *pCmdLine){
-    if (pCmdLine->argCount < 2){
-        perror("Fail to stop process");
-        return;
-    }
-    int childPID = getChildPID(pCmdLine);
-    if (kill(childPID, SIGSTOP) == -1){
+void stop(int processID){
+    if (kill(processID, SIGSTOP) == -1){
         perror("Fail to stop process");
     }
     else {
-        fprintf(stdout, "Process %d was stopped\n", childPID);
+        fprintf(stdout, "Process %d was stopped\n", processID);
     }
 }
 
-void term(cmdLine *pCmdLine){
-    if (pCmdLine->argCount < 2){
-        perror("Fail to terminate process");
-        return;
-    }
-    int childPID = getChildPID(pCmdLine);
-    if (kill(childPID, SIGTERM) == -1){
+void term(int processID){
+    if (kill(processID, SIGTERM) == -1){
         perror("Fail to terminate process");
     }
     else {
-        fprintf(stdout, "Process %d was terminated\n", childPID);
+        fprintf(stdout, "Process %d was terminated\n", processID);
     }
 
 }
 
-void wake(cmdLine *pCmdLine){
-    if (pCmdLine->argCount < 2){
-        perror("Fail to wake process");
-        return;
-    }
-    int childPID = getChildPID(pCmdLine);
-    if (kill(childPID, SIGCONT) == -1){
+void wake(int processID){
+
+    if (kill(processID, SIGCONT) == -1){
         perror("Fail to wake process");
     }
     else {
-        fprintf(stdout, "Process %d was woken\n", childPID);
+        fprintf(stdout, "Process %d was woken\n", processID);
     }
 } 
 
@@ -190,24 +177,51 @@ void handleCD(cmdLine *pCmdLine){
 //using pipe we made a connection between STDOUT and STDIN
 void execute(cmdLine *pCmdLine){
 
+    addProcess(&processList, pCmdLine, getpid());
+
     // terms
-        if (strcmp (pCmdLine->arguments[0], "stop") == 0){
-            handleStop(pCmdLine);
+     if (strcmp(pCmdLine->arguments[0], "procs") == 0){
+        printf("Printing process list\n");
+        printProcessList(&processList);
+        return;
+    }
+
+        else if (strcmp (pCmdLine->arguments[0], "stop") == 0){
+            if (pCmdLine->argCount < 2){
+                perror("Fail to stop process");
+            }
+            else {
+                stop(getChildPID(pCmdLine));
+            }
         }
 
          else if (strcmp (pCmdLine->arguments[0],"wake") == 0){
-            handleWake(pCmdLine);
+            if (pCmdLine->argCount < 2){
+                perror("Fail to wake process");
+            }
+            else {
+                wake(getChildPID(pCmdLine));
+            }
         }
 
         else if (strcmp (pCmdLine->arguments[0],"term") == 0){
-            handleTerm(pCmdLine);
+            if (pCmdLine->argCount < 2){
+                perror("Fail to terminate process");
+            }
+            else {
+                term(getChildPID(pCmdLine));
+            }
         }
 
         else if (strcmp (pCmdLine->arguments[0],"cd") == 0){
             handleCD(pCmdLine);           
         }
-    //end of terms
 
+
+
+
+         
+    //end of terms
         else{
             int PID = fork();
             if (PID == -1){
@@ -261,23 +275,39 @@ void execute(cmdLine *pCmdLine){
     
 
 void execute_pipe(cmdLine *pCmdLine) { 
+
+    addProcess(&processList, pCmdLine, getpid());
+    
     if (strcmp(pCmdLine->arguments[0], "procs") == 0){
         printProcessList(&processList);
         return;
     }
 
       if (strcmp(pCmdLine->arguments[0], "stop") == 0){
-        handleStop(pCmdLine);   
-        return;
+          if (pCmdLine->argCount < 2){
+                perror("Fail to terminate process");
+            }
+            else {
+                stop(getChildPID(pCmdLine));
+            }
     }
 
       if (strcmp(pCmdLine->arguments[0], "wake") == 0){
-        handleWake(pCmdLine);
-        return;
+          if (pCmdLine->argCount < 2){
+                perror("Fail to terminate process");
+            }
+            else {
+                wake(getChildPID(pCmdLine));
+            }
     }
 
       if (strcmp(pCmdLine->arguments[0], "term") == 0){
-        handleTerm(pCmdLine);
+          if (pCmdLine->argCount < 2){
+                perror("Fail to terminate process");
+            }
+            else {
+                term(getChildPID(pCmdLine));
+            }
         return;
     }
 
@@ -289,11 +319,6 @@ void execute_pipe(cmdLine *pCmdLine) {
     if (pCmdLine->outputRedirect != NULL || (pCmdLine->next!= NULL && pCmdLine->next->inputRedirect != NULL)) {
         fprintf(stderr, "Error: Invalid redirection with pipe\n");
         return;
-    }
-
-
-    else{
-        addProcess(&processList, pCmdLine, getpid());
     }
 
     int pipefd[2];
@@ -373,25 +398,6 @@ void execute_pipe(cmdLine *pCmdLine) {
     waitpid(child1, NULL, 0);
     waitpid(child2, NULL, 0);
 }
-
-
-void procs(){
-
-}
-
-void wake(){
-
-}
-
-void stop(){
-
-}
-
-void term(){
-
-}
-    
-
 
 
 

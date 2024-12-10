@@ -1,4 +1,4 @@
-all: mypipeline myshell
+all: mypipeline myshell looper
 
 mypipeline: mypipeline.o
 	gcc -m32 -g -Wall -o mypipeline mypipeline.o
@@ -15,7 +15,13 @@ myshell.o: myshell.c
 LineParser.o: LineParser.c
 	gcc -m32 -g -Wall -c LineParser.c
 
+looper: looper.o
+	gcc -m32 -g -Wall -o looper looper.o
+
+looper.o: looper.c
+	gcc -m32 -g -Wall -c looper.c
+
 .PHONY: clean
 
 clean:
-	rm -f *.o mypipeline myshell
+	rm -f *.o mypipeline myshell looper
