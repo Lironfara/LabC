@@ -99,6 +99,22 @@ void printHistory(history** historyList){
     }
 }
 
+bool isDigit(char c){
+    return c >= '0' && c <= '9';
+}
+
+historyLink* getHistory(history** historyList, int index){
+    if (index > 10 - HISTLEN){
+        perror("Index out of range");
+        return NULL;
+    }
+    historyLink* curr = historyList->first;
+    for (int i = 0; i < index; i++){
+        curr = curr->next;
+    }
+    return curr;
+}
+
 //puprose : child1 excecute the command and the parent wait for the child to finish
 // child12 excecute the next command based on the result of the first child
 
@@ -258,8 +274,11 @@ void execute(cmdLine *pCmdLine){
         excecute(parsedLine);
     }
     
-    if (strcmp(pCmdLine->arguments[0][0] == "!" && isDigit(pCmdLine->arguments[0][1]) "!n")){
-
+    if (pCmdLine->arguments[0][0] == "!" && isDigit(pCmdLine->arguments[0][1])){
+        int index = atoi(pCmdLine->arguments[0][1]);
+        char* cmdToParse = getHistory(historyList, index)->cmd;
+        parsedLine = parseCmdLines(cmdToParse);
+        excecute(parsedLine);
     }
 
     // terms
