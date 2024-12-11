@@ -18,6 +18,18 @@
 #define SUSPENDED 0
 char input[MAX_LENGTH]; //string is array of chars
 bool debug = false;
+int HISTLEN = 10;
+
+
+typedef struct history {
+    struct historyLinnk* first; //The first link in history, is the first link tat was inserted, meaning its the first one to go out
+    struct historyLink* last;   //The last link in history, is the last link that was inserted, meaning its the newes
+} history;
+
+typedef struct historyLink {
+    char* cmd;
+    struct history* next;
+} historyLink;
 
 typedef struct process{
     cmdLine* cmd;                         /* the parsed command line*/
@@ -27,11 +39,68 @@ typedef struct process{
 } process;
 
 process* processList = NULL;
+historyLink* historyLink = NULL;
+history* historyList = NULL;
 
+
+bool isFull(){
+    return HISTLEN == 0;
+}
+
+void cleanFirst(*history historyList){
+    historyLink* first = historyList->first;
+    historyList->first = historyList->first->next;
+    free(first->cmd);
+    free(first);
+
+}
+
+void insertToHistory(history** historyList ,char* input){
+
+    historyLink* newLink = (historyLink*)malloc(sizeof(historyLink));
+    if (newLink == NULL){
+        perror("Fail to allocate memory for new history link");
+        return;
+    }
+    if (historyList==NULL){
+        newLink->next = NULL;
+        newLink->cmd = input;
+        historyList = (history*)malloc(sizeof(history));
+        if (historyList == NULL){
+            perror("Fail to allocate memory for new history list");
+            return;
+        }
+        historyList->first = newLink;
+        historyList->last = newLink;
+        HISTLEN--;
+    }
+
+
+    else{
+        if (isFull()){
+            cleanFirst(**historyList);
+        }
+        newLink->cmd = input;
+        historyList->last->next = newLink; //O(1)
+        history->last = newLink;
+        newLink->next = NULL;
+        HISTLEN--;
+    }
+
+}
+
+void printHistory(history** historyList){
+    historyLink* curr = historyList->first;
+    int counter = 1;
+    while (curr != NULL){
+        printf("%n, %s\n", counter, curr->cmd);
+        curr = curr->next;
+        counter++;
+    }
+}
 
 //puprose : child1 excecute the command and the parent wait for the child to finish
 // child12 excecute the next command based on the result of the first child
-
 
 //old methods of Lab 2
 int getChildPID(cmdLine *pCmdLine){
@@ -179,6 +248,20 @@ void execute(cmdLine *pCmdLine){
 
     addProcess(&processList, pCmdLine, getpid());
 
+    if (strcmp(pCmdLine->arguments[0], "history") == 0){
+        printHistory(history** historyList)
+
+    }
+
+    if (strcmp(pCmdLine->arguments[0], "!!") == 0){
+        parsedLine = parseCmdLines(historyList->last->cmd); //instead of removing it
+        excecute(parsedLine);
+    }
+    
+    if (strcmp(pCmdLine->arguments[0][0] == "!" && isDigit(pCmdLine->arguments[0][1]) "!n")){
+
+    }
+
     // terms
      if (strcmp(pCmdLine->arguments[0], "procs") == 0){
         printf("Printing process list\n");
@@ -277,7 +360,11 @@ void execute(cmdLine *pCmdLine){
 void execute_pipe(cmdLine *pCmdLine) { 
 
     addProcess(&processList, pCmdLine, getpid());
-    
+     if (strcmp(pCmdLine->arguments[0], "history") == 0){
+
+    }
+
+
     if (strcmp(pCmdLine->arguments[0], "procs") == 0){
         printProcessList(&processList);
         return;
@@ -436,7 +523,9 @@ int main(int argc, char **argv){
             break;
         }
         
-        parsedLine = parseCmdLines(input); //cmd structure    
+        enterToHistory(input);
+
+        parsedLine = parseCmdLines(input); //cmd structure
         if (parsedLine == NULL){
             continue;
         }
