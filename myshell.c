@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <stdbool.h>   
 
 
 
@@ -48,6 +49,7 @@ bool isFull(){
 }
 
 void cleanFirst(history** history_List){
+    printf("Cleaning first\n");
     history* historyList = *history_List;
     if (historyList->first == NULL || historyList==NULL){
         return;
@@ -56,6 +58,7 @@ void cleanFirst(history** history_List){
     historyList->first = historyList->first->next;
     free(first->cmd);
     free(first);
+    HISTLEN++; //beacuse we cleaned 1 link
 
 }
 
@@ -99,7 +102,9 @@ void insertToHistory(history **history_List, char *input) {
         (*history_List)->last->next = newLink;
         (*history_List)->last = newLink;
     }
+
     HISTLEN--;
+    printf("History length: %d\n", HISTLEN);
 }
 
 void printHistory(history** history_List){
@@ -116,6 +121,21 @@ void printHistory(history** history_List){
             counter++;
         }
     }
+}
+
+void freeHistory(history** history_List){
+    history* historyList = *history_List;
+    if (historyList == NULL){
+        return;
+    }
+    historyLinkStruct* curr = historyList->first;
+    while (curr != NULL){
+        historyLinkStruct* next = curr->next;
+        free(curr->cmd);
+        free(curr);
+        curr = next;
+    }
+    free(historyList);
 }
 
 bool isDigit(char c){
@@ -590,7 +610,9 @@ int main(int argc, char **argv){
 
 
         if (strcmp (input,  "quit\n") == 0 ){
-            break;
+            freeProcessList(processList);
+            freeHistory(&historyList);
+            exit(0);
         }
         
         insertToHistory(&historyList,input);
