@@ -22,14 +22,14 @@ int HISTLEN = 10;
 
 
 typedef struct history {
-    struct historyLinnk* first; //The first link in history, is the first link tat was inserted, meaning its the first one to go out
-    struct historyLink* last;   //The last link in history, is the last link that was inserted, meaning its the newes
+    struct historyLinkStruct* first; //The first link in history, is the first link tat was inserted, meaning its the first one to go out
+    struct historyLinkStruct* last;   //The last link in history, is the last link that was inserted, meaning its the newes
 } history;
 
-typedef struct historyLink {
+typedef struct historyLinkStruct {
     char* cmd;
-    struct history* next;
-} historyLink;
+    struct historyLinkStruct* next;
+} historyLinkStruct;
 
 typedef struct process{
     cmdLine* cmd;                         /* the parsed command line*/
@@ -39,7 +39,7 @@ typedef struct process{
 } process;
 
 process* processList = NULL;
-historyLink* historyLink = NULL;
+historyLinkStruct* historyLink = NULL;
 history* historyList = NULL;
 
 
@@ -47,17 +47,23 @@ bool isFull(){
     return HISTLEN == 0;
 }
 
-void cleanFirst(*history historyList){
-    historyLink* first = historyList->first;
+void cleanFirst(history* historyList){
+    if (historyList->first == NULL || historyList==NULL){
+        return;
+    }
+    historyLinkStruct* first = historyList->first;
     historyList->first = historyList->first->next;
     free(first->cmd);
     free(first);
 
 }
 
-void insertToHistory(history** historyList ,char* input){
-
-    historyLink* newLink = (historyLink*)malloc(sizeof(historyLink));
+void insertToHistory(history* historyList ,char* input){
+    if (input == NULL){
+        perror("Fail to insert to history");
+        return;
+    }
+    historyLinkStruct* newLink = (historyLinkStruct*)malloc(sizeof(historyLinkStruct));
     if (newLink == NULL){
         perror("Fail to allocate memory for new history link");
         return;
@@ -78,24 +84,29 @@ void insertToHistory(history** historyList ,char* input){
 
     else{
         if (isFull()){
-            cleanFirst(**historyList);
+            cleanFirst(historyList);
         }
         newLink->cmd = input;
         historyList->last->next = newLink; //O(1)
-        history->last = newLink;
+        historyList->last = newLink;
         newLink->next = NULL;
         HISTLEN--;
     }
 
 }
 
-void printHistory(history** historyList){
-    historyLink* curr = historyList->first;
-    int counter = 1;
-    while (curr != NULL){
-        printf("%n, %s\n", counter, curr->cmd);
-        curr = curr->next;
-        counter++;
+void printHistory(history* historyList){
+    if(historyList == NULL){
+        perror("Hisory li");
+    }
+    else{
+        historyLinkStruct* curr = historyList->first;
+        int counter = 1;
+        while (curr != NULL){
+            printf("%d, %s\n", counter, curr->cmd);
+            curr = curr->next;
+            counter++;
+        }
     }
 }
 
@@ -103,12 +114,12 @@ bool isDigit(char c){
     return c >= '0' && c <= '9';
 }
 
-historyLink* getHistory(history** historyList, int index){
+historyLinkStruct* getHistory(history* historyList, int index){
     if (index > 10 - HISTLEN){
         perror("Index out of range");
         return NULL;
     }
-    historyLink* curr = historyList->first;
+    historyLinkStruct* curr = historyList->first;
     for (int i = 0; i < index; i++){
         curr = curr->next;
     }
@@ -261,24 +272,28 @@ void handleCD(cmdLine *pCmdLine){
 
 //using pipe we made a connection between STDOUT and STDIN
 void execute(cmdLine *pCmdLine){
-
+    cmdLine *parsedLine;
     addProcess(&processList, pCmdLine, getpid());
 
     if (strcmp(pCmdLine->arguments[0], "history") == 0){
-        printHistory(history** historyList)
+        printHistory(historyList);
+        return;
 
     }
 
     if (strcmp(pCmdLine->arguments[0], "!!") == 0){
         parsedLine = parseCmdLines(historyList->last->cmd); //instead of removing it
-        excecute(parsedLine);
+        execute(parsedLine);
+        return;
     }
     
-    if (pCmdLine->arguments[0][0] == "!" && isDigit(pCmdLine->arguments[0][1])){
-        int index = atoi(pCmdLine->arguments[0][1]);
-        char* cmdToParse = getHistory(historyList, index)->cmd;
+    if (pCmdLine->arguments[0][0] == '!' && isDigit(pCmdLine->arguments[0][1])){
+        int index = atoi(&pCmdLine->arguments[0][1]);
+        historyLinkStruct* linkToProcess = getHistory(historyList, index);
+        char* cmdToParse = linkToProcess->cmd;
         parsedLine = parseCmdLines(cmdToParse);
-        excecute(parsedLine);
+        execute(parsedLine);
+        return;
     }
 
     // terms
@@ -377,10 +392,24 @@ void execute(cmdLine *pCmdLine){
     
 
 void execute_pipe(cmdLine *pCmdLine) { 
-
+    cmdLine *parsedLine;
     addProcess(&processList, pCmdLine, getpid());
      if (strcmp(pCmdLine->arguments[0], "history") == 0){
+        printHistory(historyList);
+        return;
+    }
 
+     if (strcmp(pCmdLine->arguments[0], "!!") == 0){
+        parsedLine = parseCmdLines(historyList->last->cmd); //instead of removing it
+        execute(parsedLine);
+    }
+    
+    if (pCmdLine->arguments[0][0] == '!' && isDigit(pCmdLine->arguments[0][1])){
+        int index = atoi(&pCmdLine->arguments[0][1]);
+        historyLinkStruct* linkToProcess = getHistory(historyList, index);
+        char* cmdToParse = linkToProcess->cmd;
+        parsedLine = parseCmdLines(cmdToParse);
+        execute(parsedLine);
     }
 
 
@@ -542,7 +571,7 @@ int main(int argc, char **argv){
             break;
         }
         
-        enterToHistory(input);
+        insertToHistory(historyList,input);
 
         parsedLine = parseCmdLines(input); //cmd structure
         if (parsedLine == NULL){
