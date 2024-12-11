@@ -27,6 +27,7 @@ typedef struct history {
     struct historyLinkStruct* last;   //The last link in history, is the last link that was inserted, meaning its the newes
 } history;
 
+
 typedef struct historyLinkStruct {
     char* cmd;
     struct historyLinkStruct* next;
@@ -49,7 +50,6 @@ bool isFull(){
 }
 
 void cleanFirst(history** history_List){
-    printf("Cleaning first\n");
     history* historyList = *history_List;
     if (historyList->first == NULL || historyList==NULL){
         return;
@@ -85,7 +85,6 @@ void insertToHistory(history **history_List, char *input) {
     newLink->next = NULL;
 
     if (*history_List == NULL) {
-        printf("Creating new history list\n");
         *history_List = (history*)malloc(sizeof(history));
         if (*history_List == NULL) {
             perror("Fail to allocate memory for new history list");
@@ -104,7 +103,6 @@ void insertToHistory(history **history_List, char *input) {
     }
 
     HISTLEN--;
-    printf("History length: %d\n", HISTLEN);
 }
 
 void printHistory(history** history_List){
@@ -179,7 +177,7 @@ void addProcess(process** process_list, cmdLine* cmd, pid_t pid){
 
 void freeProcessList(process* process_list){
     process* curr = process_list;
-    while (curr != NULL) {
+    while (curr != NULL){
         process* next = curr->next;
         freeCmdLines(curr->cmd);
         free(curr);
@@ -238,17 +236,31 @@ void updateProcessStatus(process* process_list, int pid, int status){
     }
 }
 
+void printArguments(cmdLine *pCmdLine)
+{
+    for (int i = 0; i < pCmdLine->argCount; ++i)
+        printf("%s ", pCmdLine->arguments[i]);
+
+    printf("\n");
+}
 
 void printProcessList(process** process_list) {
     updateProcessList(process_list);
     process* curr = *process_list;
     while (curr != NULL) {
-        printf("PID: %d, Command: %s\n", curr->pid, curr->cmd->arguments[0]);
+        if (curr->cmd == NULL) {
+            fprintf(stderr, "Error: curr->cmd is NULL\n");
+            curr = curr->next;
+            return;
+        }    
+        printf("PID: %d, status: %d, command: ", (*process_list)->pid, (*process_list)->status);
+        printArguments((*process_list)->cmd);
         if (curr->status == RUNNING) {
             printf("Status: Running\n");
         } else if (curr->status == SUSPENDED) {
             printf("Status: Suspended\n");
-        } else if (curr->status == TERMINATED) {
+        }
+        else if (curr->status == TERMINATED) {
             printf("Status: Terminated\n");
         }
         curr = curr->next;
@@ -333,7 +345,6 @@ void execute(cmdLine *pCmdLine){
 
     // terms
      if (strcmp(pCmdLine->arguments[0], "procs") == 0){
-        printf("Printing process list\n");
         printProcessList(&processList);
         return;
     }
@@ -612,8 +623,9 @@ int main(int argc, char **argv){
         if (strcmp (input,  "quit\n") == 0 ){
             freeProcessList(processList);
             freeHistory(&historyList);
-            exit(0);
+            break;
         }
+
         
         insertToHistory(&historyList,input);
 
