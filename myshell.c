@@ -235,8 +235,9 @@ void updateProcessList(process **process_list) {
         int status;
         pid_t result = waitpid(curr->pid, &status, WNOHANG);
         if (result == -1) {
-            return;
+            perror("waitpid failed");
         } else if (result > 0) {
+            printf("Process %d has terminated\n", curr->pid);
             if (WIFEXITED(status) || WIFSIGNALED(status)) {
                 curr->status = TERMINATED;
             }
@@ -246,6 +247,7 @@ void updateProcessList(process **process_list) {
 }
 
 void updateProcessStatus(process* process_list, int pid, int status){
+    printf("%d\n", pid);
     process* curr = process_list;
     while (curr!=NULL){
         if (curr->pid == pid){
@@ -266,7 +268,7 @@ void printArguments(cmdLine *pCmdLine)
 
 void printProcessList(process** process_list) {
     updateProcessList(process_list);
-    printf("Index\t\tPID\t\tSTATUS\t\tCommand\n");
+    printf("Index\t\tPID\t\tSTATUS\t\t\tCommand\n");
     process* curr = *process_list;
     int index = 1;
     while (curr != NULL) {
@@ -285,7 +287,7 @@ void printProcessList(process** process_list) {
             status = "TERMINATED";
         }
 
-        printf("%d\t\t%d\t\t%s\t\t", index,curr->pid, status);
+        printf("%d\t\t%d\t\t%s\t\t\t", index,curr->pid, status);
         printArguments(curr->cmd);
         index++;
         curr = curr->next;
@@ -298,6 +300,7 @@ void stop(int processID){
     }
     else {
         fprintf(stdout, "Process %d was stopped\n", processID);
+        updateProcessStatus(process_list, processID, SUSPENDED);
     }
 }
 
@@ -307,6 +310,8 @@ void term(int processID){
     }
     else {
         fprintf(stdout, "Process %d was terminated\n", processID);
+        printf("Updating process status\n");
+        updateProcessStatus(process_list, processID, TERMINATED);
     }
 
 }
@@ -332,17 +337,16 @@ void handleCD(cmdLine *pCmdLine){
     else {
         fprintf(stdout, "Directory was changed\n");
     }
-     freeCmdLines(pCmdLine);
+    freeCmdLines(pCmdLine);
 
 }
 
 //using pipe we made a connection between STDOUT and STDIN
 void execute(cmdLine *pCmdLine){
     cmdLine *parsedLine;
-    addProcess(&process_list, pCmdLine, getpid());
-
     if (strcmp(pCmdLine->arguments[0], "history") == 0){
         printHistory(&historyList);
+        freeCmdLines(pCmdLine);
         return;
 
     }
@@ -353,6 +357,7 @@ void execute(cmdLine *pCmdLine){
         historyLinkStruct* linkToProcess = getHistory(&historyList, index);
         char* cmdToParse = linkToProcess->cmd;
         parsedLine = parseCmdLines(cmdToParse);
+        freeCmdLines(pCmdLine);
         execute(parsedLine);
         return;        
         
@@ -371,6 +376,7 @@ void execute(cmdLine *pCmdLine){
     // terms
      if (strcmp(pCmdLine->arguments[0], "procs") == 0){
         printProcessList(&process_list);
+        freeCmdLines(pCmdLine);
         return;
     }
 
@@ -381,6 +387,8 @@ void execute(cmdLine *pCmdLine){
             else {
                 stop(getChildPID(pCmdLine));
             }
+            freeCmdLines(pCmdLine);
+            return;
         }
 
          else if (strcmp (pCmdLine->arguments[0],"wake") == 0){
@@ -390,6 +398,8 @@ void execute(cmdLine *pCmdLine){
             else {
                 wake(getChildPID(pCmdLine));
             }
+            freeCmdLines(pCmdLine);
+            return;
         }
 
         else if (strcmp (pCmdLine->arguments[0],"term") == 0){
@@ -399,10 +409,14 @@ void execute(cmdLine *pCmdLine){
             else {
                 term(getChildPID(pCmdLine));
             }
+            freeCmdLines(pCmdLine);
+            return;
         }
 
         else if (strcmp (pCmdLine->arguments[0],"cd") == 0){
-            handleCD(pCmdLine);           
+            handleCD(pCmdLine);
+            return;
+
         }
 
 
@@ -412,6 +426,7 @@ void execute(cmdLine *pCmdLine){
     //end of terms
         else{
             int PID = fork();
+            addProcess(&process_list, pCmdLine, PID);
             if (PID == -1){
             perror("Frok failed");
             freeCmdLines(pCmdLine);
@@ -444,7 +459,6 @@ void execute(cmdLine *pCmdLine){
 
             if (execvp(pCmdLine->arguments[0], pCmdLine->arguments) == -1){ //trying to run
             perror("Error in execvp");
-            freeCmdLines(pCmdLine);
             _exit(1); //to 'kill' the child :(
             }
         }
@@ -464,36 +478,37 @@ void execute(cmdLine *pCmdLine){
 
 void execute_pipe(cmdLine *pCmdLine) { 
     cmdLine *parsedLine;
-    addProcess(&process_list, pCmdLine, getpid());
      if (strcmp(pCmdLine->arguments[0], "history") == 0){
         printHistory(&historyList);
+        freeCmdLines(pCmdLine);
         return;
     }
 
        if (strcmp(pCmdLine->arguments[0], "!!") == 0){
         int index = 9 - HISTLEN;
+        freeCmdLines(pCmdLine);
         printf("Index: %d\n", index);
         historyLinkStruct* linkToProcess = getHistory(&historyList, index);
         char* cmdToParse = linkToProcess->cmd;
         parsedLine = parseCmdLines(cmdToParse);
         execute(parsedLine);
-        freeCmdLines(parsedLine);
         return;        
         
     }
     
     if (pCmdLine->arguments[0][0] == '!' && isDigit(pCmdLine->arguments[0][1])){
         int index = atoi(&pCmdLine->arguments[0][1]);
+        freeCmdLines(pCmdLine);
         historyLinkStruct* linkToProcess = getHistory(&historyList, index);
         char* cmdToParse = linkToProcess->cmd;
         parsedLine = parseCmdLines(cmdToParse);
         execute(parsedLine);
-        freeCmdLines(parsedLine);
         return;
     }
 
 
     if (strcmp(pCmdLine->arguments[0], "procs") == 0){
+        freeCmdLines(pCmdLine);
         printProcessList(&process_list);
         return;
     }
@@ -505,6 +520,8 @@ void execute_pipe(cmdLine *pCmdLine) {
             else {
                 stop(getChildPID(pCmdLine));
             }
+            freeCmdLines(pCmdLine);
+            return;
     }
 
       if (strcmp(pCmdLine->arguments[0], "wake") == 0){
@@ -514,6 +531,8 @@ void execute_pipe(cmdLine *pCmdLine) {
             else {
                 wake(getChildPID(pCmdLine));
             }
+            freeCmdLines(pCmdLine);
+            return;
     }
 
       if (strcmp(pCmdLine->arguments[0], "term") == 0){
@@ -523,6 +542,7 @@ void execute_pipe(cmdLine *pCmdLine) {
             else {
                 term(getChildPID(pCmdLine));
             }
+            freeCmdLines(pCmdLine);
         return;
     }
 
@@ -533,6 +553,7 @@ void execute_pipe(cmdLine *pCmdLine) {
 
     if (pCmdLine->outputRedirect != NULL || (pCmdLine->next!= NULL && pCmdLine->next->inputRedirect != NULL)) {
         fprintf(stderr, "Error: Invalid redirection with pipe\n");
+        freeCmdLines(pCmdLine);
         return;
     }
 
@@ -543,6 +564,7 @@ void execute_pipe(cmdLine *pCmdLine) {
     }
 
     pid_t child1 = fork();
+     addProcess(&process_list, pCmdLine, child1);
     if (child1 == -1) {
         perror("Fork failed");
         return;
@@ -575,6 +597,7 @@ void execute_pipe(cmdLine *pCmdLine) {
     }
 
     pid_t child2 = fork();
+        addProcess(&process_list, pCmdLine->next, child2);
     if (child2 == -1) {
         perror("Fork failed");
         return;
@@ -582,7 +605,7 @@ void execute_pipe(cmdLine *pCmdLine) {
 
 
 ////////////////-----------------------------Second child-----------------------------////////////////
-    if (child2 == 0) { 
+    if (child2 == 0) {
         close(pipefd[1]); // Close write-end of the pipe
         dup2(pipefd[0], STDIN_FILENO); // Redirect stdin to the pipe's read-end
         close(pipefd[0]);
