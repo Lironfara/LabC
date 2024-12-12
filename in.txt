@@ -1,5 +1,0 @@
-Line 1: This is the first line.
-Line 2: Here's the second line.
-Line 3: Another line in the file.
-Line 4: Yet another line of text.
-Line 5: The final line in the file.

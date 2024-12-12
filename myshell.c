@@ -40,7 +40,7 @@ typedef struct process{
     struct process *next;	                  /* next process in chain */
 } process;
 
-process* processList = NULL;
+process* process_list = NULL;
 historyLinkStruct* historyLink = NULL;
 history* historyList = NULL;
 
@@ -161,19 +161,41 @@ int getChildPID(cmdLine *pCmdLine){
     return atoi(pCmdLine->arguments[1]);
 }
 
-void addProcess(process** process_list, cmdLine* cmd, pid_t pid){
+void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
+    // Allocate memory for the new process
     process* newProcess = (process*)malloc(sizeof(process));
-    if (newProcess == NULL){
-        perror("Fail to allocate memory for new process");
+    if (newProcess == NULL) {
+        perror("Failed to allocate memory for new process");
         return;
     }
+
+    if (cmd == NULL) {
+        perror("cmd is NULL");
+        free(newProcess); // Free allocated memory to prevent leaks
+        return;
+    }
+
+    // Initialize the new process
     newProcess->cmd = cmd;
     newProcess->pid = pid;
     newProcess->status = RUNNING;
-    newProcess->next = *process_list;
-    *process_list = newProcess;
-    
+    newProcess->next = NULL; // Since it's a new node, next should initially be NULL
+
+    // Add the new process to the list
+    if (*process_list == NULL) {
+        // If the list is empty, the new process becomes the head
+        *process_list = newProcess;
+    } else {
+        // Traverse to the end of the list
+        process* curr = *process_list;
+        while (curr->next != NULL) {
+            curr = curr->next;
+        }
+        curr->next = newProcess; // Append the new process at the end
+    }
 }
+
+
 
 void freeProcessList(process* process_list){
     process* curr = process_list;
@@ -246,23 +268,27 @@ void printArguments(cmdLine *pCmdLine)
 
 void printProcessList(process** process_list) {
     updateProcessList(process_list);
+    printf("Index\t\tPID\t\tSTATUS\t\tCommand\n");
     process* curr = *process_list;
     while (curr != NULL) {
         if (curr->cmd == NULL) {
             fprintf(stderr, "Error: curr->cmd is NULL\n");
             curr = curr->next;
             return;
-        }    
-        printf("PID: %d, status: %d, command: ", (*process_list)->pid, (*process_list)->status);
-        printArguments((*process_list)->cmd);
+        }   
+        char* status;
         if (curr->status == RUNNING) {
-            printf("Status: Running\n");
+            status = "RUNNING";
         } else if (curr->status == SUSPENDED) {
-            printf("Status: Suspended\n");
+            status = "SUSPENDED";
         }
         else if (curr->status == TERMINATED) {
-            printf("Status: Terminated\n");
+            status = "TERMINATED";
         }
+
+        printf("\t\t%d\t\t%s\t\t", (curr)->pid, status);
+        printArguments((curr)->cmd);
+        
         curr = curr->next;
     }
 }
@@ -314,7 +340,7 @@ void handleCD(cmdLine *pCmdLine){
 //using pipe we made a connection between STDOUT and STDIN
 void execute(cmdLine *pCmdLine){
     cmdLine *parsedLine;
-    addProcess(&processList, pCmdLine, getpid());
+    addProcess(&process_list, pCmdLine, getpid());
 
     if (strcmp(pCmdLine->arguments[0], "history") == 0){
         printHistory(&historyList);
@@ -345,7 +371,7 @@ void execute(cmdLine *pCmdLine){
 
     // terms
      if (strcmp(pCmdLine->arguments[0], "procs") == 0){
-        printProcessList(&processList);
+        printProcessList(&process_list);
         return;
     }
 
@@ -439,7 +465,7 @@ void execute(cmdLine *pCmdLine){
 
 void execute_pipe(cmdLine *pCmdLine) { 
     cmdLine *parsedLine;
-    addProcess(&processList, pCmdLine, getpid());
+    addProcess(&process_list, pCmdLine, getpid());
      if (strcmp(pCmdLine->arguments[0], "history") == 0){
         printHistory(&historyList);
         return;
@@ -469,7 +495,7 @@ void execute_pipe(cmdLine *pCmdLine) {
 
 
     if (strcmp(pCmdLine->arguments[0], "procs") == 0){
-        printProcessList(&processList);
+        printProcessList(&process_list);
         return;
     }
 
@@ -621,7 +647,7 @@ int main(int argc, char **argv){
 
 
         if (strcmp (input,  "quit\n") == 0 ){
-            freeProcessList(processList);
+            freeProcessList(process_list);
             freeHistory(&historyList);
             break;
         }
