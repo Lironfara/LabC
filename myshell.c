@@ -108,7 +108,7 @@ void insertToHistory(history **history_List, char *input) {
 void printHistory(history** history_List){
     history* historyList = *history_List;
     if(historyList == NULL){
-        perror("Hisory li");
+        perror("No history");
     }
     else{
         historyLinkStruct* curr = historyList->first;
@@ -183,10 +183,8 @@ void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
 
     // Add the new process to the list
     if (*process_list == NULL) {
-        // If the list is empty, the new process becomes the head
         *process_list = newProcess;
     } else {
-        // Traverse to the end of the list
         process* curr = *process_list;
         while (curr->next != NULL) {
             curr = curr->next;
@@ -237,7 +235,7 @@ void updateProcessList(process **process_list) {
         int status;
         pid_t result = waitpid(curr->pid, &status, WNOHANG);
         if (result == -1) {
-            perror("waitpid failed");
+            return;
         } else if (result > 0) {
             if (WIFEXITED(status) || WIFSIGNALED(status)) {
                 curr->status = TERMINATED;
@@ -270,6 +268,7 @@ void printProcessList(process** process_list) {
     updateProcessList(process_list);
     printf("Index\t\tPID\t\tSTATUS\t\tCommand\n");
     process* curr = *process_list;
+    int index = 1;
     while (curr != NULL) {
         if (curr->cmd == NULL) {
             fprintf(stderr, "Error: curr->cmd is NULL\n");
@@ -286,9 +285,9 @@ void printProcessList(process** process_list) {
             status = "TERMINATED";
         }
 
-        printf("\t\t%d\t\t%s\t\t", (curr)->pid, status);
-        printArguments((curr)->cmd);
-        
+        printf("%d\t\t%d\t\t%s\t\t", index,curr->pid, status);
+        printArguments(curr->cmd);
+        index++;
         curr = curr->next;
     }
 }
@@ -666,7 +665,6 @@ int main(int argc, char **argv){
 
         execute_pipe(parsedLine); 
     }
-    freeCmdLines(parsedLine); 
 
 }
 }
