@@ -142,8 +142,10 @@ bool isDigit(char c){
 
 historyLinkStruct* getHistory(history** history_List, int index){
     history* historyList = *history_List;
-    if (index > 10 - HISTLEN){
-        perror("Index out of range");
+    printf("Index: %d\n", index);  
+    printf("9-HISTLEN: %d\n", 9-HISTLEN); 
+    if (index > (9 - HISTLEN)){
+        fprintf(stderr ,"Index out of range\n");
         return NULL;
     }
     historyLinkStruct* curr = historyList->first;
@@ -161,6 +163,8 @@ int getChildPID(cmdLine *pCmdLine){
     return atoi(pCmdLine->arguments[1]);
 }
 
+
+//void addProcess(process** process_list, cmdLine* cmd, pid_t pid)
 void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
     // Allocate memory for the new process
     process* newProcess = (process*)malloc(sizeof(process));
@@ -194,7 +198,7 @@ void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
 }
 
 
-
+//void freeProcessList(process* process_list)
 void freeProcessList(process* process_list){
     process* curr = process_list;
     while (curr != NULL){
@@ -205,7 +209,7 @@ void freeProcessList(process* process_list){
     }
 }
 
-void removeProcess(process** process_list){
+void removeDeadProcesses(process** process_list){
     process* prev = NULL;
     process* curr = *process_list;
     while (curr!=NULL){
@@ -228,24 +232,35 @@ void removeProcess(process** process_list){
 
 }
 
-
+//void updateProcessList(process **process_list)
 void updateProcessList(process **process_list) {
     process* curr = *process_list;
     while (curr != NULL) {
         int status;
         pid_t result = waitpid(curr->pid, &status, WNOHANG);
-        if (result == -1) {
-            perror("waitpid failed");
-        } else if (result > 0) {
+        if (result == 0) {
+            curr->status = RUNNING;
+        } 
+        else if (result == -1) {
+            perror("waitpid");
+        } 
+        else {
             printf("Process %d has terminated\n", curr->pid);
             if (WIFEXITED(status) || WIFSIGNALED(status)) {
                 curr->status = TERMINATED;
+            }
+            else if (WIFSTOPPED(status)) {
+                curr->status = SUSPENDED;
+            }
+            else if (WIFCONTINUED(status)) {
+                curr->status = RUNNING;
             }
         }
         curr = curr->next;
     }
 }
 
+//void updateProcessStatus(process* process_list, int pid, int status)
 void updateProcessStatus(process* process_list, int pid, int status){
     printf("%d\n", pid);
     process* curr = process_list;
@@ -266,9 +281,13 @@ void printArguments(cmdLine *pCmdLine)
     printf("\n");
 }
 
+//void printProcessList(process** process_list)
+//Run updateProcessList() at the beginning of the function.
+//If a process was "freshly" terminated, delete it after printing it 
+//(meaning print the list with the updated status, then delete the dead processes)
 void printProcessList(process** process_list) {
     updateProcessList(process_list);
-    printf("Index\t\tPID\t\tSTATUS\t\t\tCommand\n");
+    printf("Index\t\tPID\t\t\tSTATUS\t\t\tCommand\n");
     process* curr = *process_list;
     int index = 1;
     while (curr != NULL) {
@@ -287,11 +306,12 @@ void printProcessList(process** process_list) {
             status = "TERMINATED";
         }
 
-        printf("%d\t\t%d\t\t%s\t\t\t", index,curr->pid, status);
+        printf("%d\t\t%d\t\t\t%s\t\t\t", index,curr->pid, status);
         printArguments(curr->cmd);
         index++;
         curr = curr->next;
     }
+    removeDeadProcesses(process_list);
 }
 
 void stop(int processID){
@@ -355,6 +375,11 @@ void execute(cmdLine *pCmdLine){
         int index = 9 - HISTLEN;
         printf("Index: %d\n", index);
         historyLinkStruct* linkToProcess = getHistory(&historyList, index);
+        if (linkToProcess == NULL){
+            fprintf(stderr,"Fail to get history\n");
+            freeCmdLines(pCmdLine);
+            return;
+        }
         char* cmdToParse = linkToProcess->cmd;
         parsedLine = parseCmdLines(cmdToParse);
         freeCmdLines(pCmdLine);
@@ -363,13 +388,21 @@ void execute(cmdLine *pCmdLine){
         
     }
     
+    
     if (pCmdLine->arguments[0][0] == '!' && isDigit(pCmdLine->arguments[0][1])){
         int index = atoi(&pCmdLine->arguments[0][1]);
+        printf("Index is : %d", index);
         historyLinkStruct* linkToProcess = getHistory(&historyList, index);
+        if (linkToProcess == NULL){
+            fprintf(stderr, "Fail to get history\n");
+            freeCmdLines(pCmdLine);
+            return;
+        }   
         char* cmdToParse = linkToProcess->cmd;
+        printf("Command to parse: %s\n", cmdToParse);
+        freeCmdLines(pCmdLine);
         parsedLine = parseCmdLines(cmdToParse);
         execute(parsedLine);
-        freeCmdLines(parsedLine);
         return;
     }
 
@@ -487,8 +520,12 @@ void execute_pipe(cmdLine *pCmdLine) {
        if (strcmp(pCmdLine->arguments[0], "!!") == 0){
         int index = 9 - HISTLEN;
         freeCmdLines(pCmdLine);
-        printf("Index: %d\n", index);
         historyLinkStruct* linkToProcess = getHistory(&historyList, index);
+        if (linkToProcess == NULL){
+            fprintf(stderr, "Fail to get history\n");
+            freeCmdLines(pCmdLine);
+            return;
+        }   
         char* cmdToParse = linkToProcess->cmd;
         parsedLine = parseCmdLines(cmdToParse);
         execute(parsedLine);
@@ -498,10 +535,17 @@ void execute_pipe(cmdLine *pCmdLine) {
     
     if (pCmdLine->arguments[0][0] == '!' && isDigit(pCmdLine->arguments[0][1])){
         int index = atoi(&pCmdLine->arguments[0][1]);
+        printf("Index: %d\n", index);
         freeCmdLines(pCmdLine);
         historyLinkStruct* linkToProcess = getHistory(&historyList, index);
+        if (linkToProcess == NULL){
+            fprintf(stderr, "Fail to get history\n");
+            freeCmdLines(pCmdLine);
+            return;
+        }
         char* cmdToParse = linkToProcess->cmd;
         parsedLine = parseCmdLines(cmdToParse);
+        freeCmdLines(pCmdLine);
         execute(parsedLine);
         return;
     }
@@ -644,6 +688,7 @@ int main(int argc, char **argv){
     cmdLine *parsedLine;
 
     if (argc>1 && strcmp(argv[1], "-d") == 0){
+        printf("Debug mode is on\n");
         debug = true;
     }
     
