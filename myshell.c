@@ -203,7 +203,10 @@ void freeProcessList(process* process_list){
     process* curr = process_list;
     while (curr != NULL){
         process* next = curr->next;
-        freeCmdLines(curr->cmd);
+        if(curr->cmd != NULL){
+            freeCmdLines(curr->cmd);
+            curr->cmd = NULL;
+        }
         free(curr);
         curr = next;
     }
@@ -611,7 +614,7 @@ void execute_pipe(cmdLine *pCmdLine) {
     }
 
     pid_t child1 = fork();
-     addProcess(&process_list, pCmdLine, child1);
+    addProcess(&process_list, pCmdLine, child1);
     if (child1 == -1) {
         perror("Fork failed");
         return;
@@ -643,8 +646,8 @@ void execute_pipe(cmdLine *pCmdLine) {
         }
     }
 
+
     pid_t child2 = fork();
-        addProcess(&process_list, pCmdLine->next, child2);
     if (child2 == -1) {
         perror("Fork failed");
         return;
@@ -662,6 +665,7 @@ void execute_pipe(cmdLine *pCmdLine) {
                 FILE *outputFile = fopen(pCmdLine->outputRedirect, "w");
                 if (outputFile == NULL){
                     perror("Fail to open output file");
+                    freeCmdLines(pCmdLine);
                     _exit(1);
                 }
                 dup2(fileno(outputFile), STDOUT_FILENO); //to write to the file
@@ -672,16 +676,20 @@ void execute_pipe(cmdLine *pCmdLine) {
 
         if (execvp(pCmdLine->next->arguments[0], pCmdLine->next->arguments) == -1) {
             perror("Fail to execute second command");
+            freeCmdLines(pCmdLine);
             _exit(1);
         }
     }
 
     close(pipefd[0]); // Close both ends of the pipe in the parent process
+    addProcess(&process_list, pCmdLine->next, child2);
     close(pipefd[1]);
 
     // Wait for both children to finish
-    waitpid(child1, NULL, 0);
-    waitpid(child2, NULL, 0);
+    if (pCmdLine->next->blocking == 1) {
+        waitpid(child1, NULL, 0);
+        waitpid(child2, NULL, 0);
+    }
 }
 
 
@@ -726,6 +734,7 @@ int main(int argc, char **argv){
         insertToHistory(&historyList,input);
 
         parsedLine = parseCmdLines(input); //cmd structure
+        fprintf(stdout, "Command: %s\n", input);
         if (parsedLine == NULL){
             continue;
         }
