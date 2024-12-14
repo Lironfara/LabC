@@ -142,9 +142,8 @@ bool isDigit(char c){
 
 historyLinkStruct* getHistory(history** history_List, int index){
     history* historyList = *history_List;
-    printf("Index: %d\n", index);  
-    printf("9-HISTLEN: %d\n", 9-HISTLEN); 
-    if (index > (9 - HISTLEN)){
+
+    if (index > (9 - HISTLEN) || index < 0){
         fprintf(stderr ,"Index out of range\n");
         return NULL;
     }
@@ -195,6 +194,7 @@ void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
         }
         curr->next = newProcess; // Append the new process at the end
     }
+    
 }
 
 
@@ -237,14 +237,11 @@ void updateProcessList(process **process_list) {
     process* curr = *process_list;
     while (curr != NULL) {
         int status;
-        pid_t result = waitpid(curr->pid, &status, WNOHANG);
-        if (result == 0) {
-            curr->status = RUNNING;
-        } 
-        else if (result == -1) {
+        pid_t result = waitpid(curr->pid, &status, WNOHANG | WUNTRACED);
+        if (result == -1) {
             perror("waitpid");
         } 
-        else {
+        else if(result != 0){
             printf("Process %d has terminated\n", curr->pid);
             if (WIFEXITED(status) || WIFSIGNALED(status)) {
                 curr->status = TERMINATED;
@@ -262,12 +259,15 @@ void updateProcessList(process **process_list) {
 
 //void updateProcessStatus(process* process_list, int pid, int status)
 void updateProcessStatus(process* process_list, int pid, int status){
+    printf("Updating process status to %d :\n", status);
     printf("%d\n", pid);
     process* curr = process_list;
     while (curr!=NULL){
         if (curr->pid == pid){
+            printf("Process found\n");
             curr->status = status;
-            break;
+            printf("New status: %d\n", curr->status);   
+            return;
         }
         curr = curr->next;
     }
@@ -297,6 +297,7 @@ void printProcessList(process** process_list) {
             return;
         }   
         char* status;
+        printf("Status: %d\n", curr->status);   
         if (curr->status == RUNNING) {
             status = "RUNNING";
         } else if (curr->status == SUSPENDED) {
@@ -317,6 +318,7 @@ void printProcessList(process** process_list) {
 void stop(int processID){
     if (kill(processID, SIGSTOP) == -1){
         perror("Fail to stop process");
+        return;
     }
     else {
         fprintf(stdout, "Process %d was stopped\n", processID);
@@ -343,6 +345,7 @@ void wake(int processID){
     }
     else {
         fprintf(stdout, "Process %d was woken\n", processID);
+        updateProcessStatus(process_list, processID, RUNNING);
     }
 } 
 
