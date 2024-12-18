@@ -1,32 +1,3 @@
-//from lab 2
-
-/*
-Having learned how to create a pipe between 2 processes/programs in Part 1, we now wish to implement 
-a pipeline inside our own shell. In this part you will extend your shell's capabilities to support
-pipelines that consist of just one pipe and 2 child processes. That is, support a command 
-line with one pipe between 2 processes resulting from running executable files mentioned in the command line.
-The scheme uses basically the same mechanism as in part 1, except that now the program to be executed in each 
-child process is determined by the command line.
-
-Your shell must be able now to run commands like: ls|wc -l which basically counts the number of 
-files/directories under the current working dir. The most important thing to remember about pipes 
-is that the write-end of the pipe needs to be closed in all processes, otherwise the read-end of the pipe will 
-not receive EOF, unless the main process terminates.
-Notes:
-
-The line parser automatically generates a list of cmdLine structures to accommodate pipelines. 
-For instance, when parsing the command "ls | grep .c", two chained cmdLine structures are created, 
-representing ls and grep respectively.
-Your shell must still support all previous features, 
-including input/output redirection from lab 2. 
-Obviously, it makes no sense to redirect the output of the left--hand-side process (as then nothing goes into the pipe), 
-and this should be considered an error, and likewise redirecting the input of the right-hand-side process is an error 
-(as then the pipe output is hanging). In such cases, print an error message to stderr without generating any new processes.
-It is important to note that commands utilizing both I/O redirection and pipelines are indeed quite common
-(e.g. "cat < in.txt | tail -n 2 > out.txt").
-As in previous tasks, you must keep your program free of memory leaks.
-*/
-
 #include <stdio.h>   
 #include <stdlib.h>   
 #include <unistd.h>  

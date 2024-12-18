@@ -199,16 +199,24 @@ void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
 
 
 //void freeProcessList(process* process_list)
-void freeProcessList(process* process_list){
+void freeProcessList(process* process_list) {
     process* curr = process_list;
-    while (curr != NULL){
+    while (curr != NULL) {
         process* next = curr->next;
-        if(curr->cmd != NULL){
-            freeCmdLines(curr->cmd);
-            curr->cmd = NULL;
+        if (curr->cmd != NULL) {
+            if (curr->cmd->next != NULL) {
+                freeCmdLines(curr->cmd);
+                next = next->next;  // Skip the next process
+                free(curr->next);
+                free(curr);
+            }
+            else{
+                freeCmdLines(curr->cmd);
+                next = curr->next;  
+                free(curr);
+            }
+            curr = next;
         }
-        free(curr);
-        curr = next;
     }
 }
 
@@ -262,14 +270,10 @@ void updateProcessList(process **process_list) {
 
 //void updateProcessStatus(process* process_list, int pid, int status)
 void updateProcessStatus(process* process_list, int pid, int status){
-    printf("Updating process status to %d :\n", status);
-    printf("%d\n", pid);
     process* curr = process_list;
     while (curr!=NULL){
         if (curr->pid == pid){
-            printf("Process found\n");
             curr->status = status;
-            printf("New status: %d\n", curr->status);   
             return;
         }
         curr = curr->next;
@@ -300,7 +304,6 @@ void printProcessList(process** process_list) {
             return;
         }   
         char* status;
-        printf("Status: %d\n", curr->status);   
         if (curr->status == RUNNING) {
             status = "RUNNING";
         } else if (curr->status == SUSPENDED) {
@@ -335,7 +338,6 @@ void term(int processID){
     }
     else {
         fprintf(stdout, "Process %d was terminated\n", processID);
-        printf("Updating process status\n");
         updateProcessStatus(process_list, processID, TERMINATED);
     }
 
@@ -468,9 +470,8 @@ void execute(cmdLine *pCmdLine){
             addProcess(&process_list, pCmdLine, PID);
             if (PID == -1){
             perror("Frok failed");
-            freeCmdLines(pCmdLine);
             _exit(1);
-            }
+        }
 
             else if (PID == 0){ //child process
             //adding files:
@@ -648,6 +649,8 @@ void execute_pipe(cmdLine *pCmdLine) {
 
 
     pid_t child2 = fork();
+    addProcess(&process_list, pCmdLine->next, child2);
+    
     if (child2 == -1) {
         perror("Fork failed");
         return;
@@ -665,7 +668,6 @@ void execute_pipe(cmdLine *pCmdLine) {
                 FILE *outputFile = fopen(pCmdLine->outputRedirect, "w");
                 if (outputFile == NULL){
                     perror("Fail to open output file");
-                    freeCmdLines(pCmdLine);
                     _exit(1);
                 }
                 dup2(fileno(outputFile), STDOUT_FILENO); //to write to the file
@@ -676,13 +678,11 @@ void execute_pipe(cmdLine *pCmdLine) {
 
         if (execvp(pCmdLine->next->arguments[0], pCmdLine->next->arguments) == -1) {
             perror("Fail to execute second command");
-            freeCmdLines(pCmdLine);
             _exit(1);
         }
     }
 
     close(pipefd[0]); // Close both ends of the pipe in the parent process
-    addProcess(&process_list, pCmdLine->next, child2);
     close(pipefd[1]);
 
     // Wait for both children to finish
@@ -720,19 +720,19 @@ int main(int argc, char **argv){
     
 
         fprintf(stdout, "%s>", current_dir); //print the current directory using prompt symbol
-
         fgets(input, MAX_LENGTH, stdin); //reading from stdin to line - max length is 2048
 
-
         if (strcmp (input,  "quit\n") == 0 ){
+            if (process_list==NULL){
+                //printf("NULL");
+            }
             freeProcessList(process_list);
             freeHistory(&historyList);
-            break;
+            exit(0);
         }
 
         
         insertToHistory(&historyList,input);
-
         parsedLine = parseCmdLines(input); //cmd structure
         fprintf(stdout, "Command: %s\n", input);
         if (parsedLine == NULL){
@@ -745,6 +745,5 @@ int main(int argc, char **argv){
 
         execute_pipe(parsedLine); 
     }
-
-}
+  }
 }
